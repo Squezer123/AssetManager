@@ -2,7 +2,6 @@ import laptops from "../../../data/laptops.json";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-
 export default async function LaptopDetails({ params }) {
 
   const { id } = await params;
@@ -16,45 +15,6 @@ export default async function LaptopDetails({ params }) {
 
   return (
     <main className="min-h-screen bg-slate-100">
-
-      <nav className="border-b bg-white shadow-sm">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-
-          <h1 className="text-2xl font-bold text-slate-800">
-            Asset Manager
-          </h1>
-
-
-          <div className="flex gap-8">
-
-            <Link 
-              href="/"
-              className="hover:text-blue-600"
-            >
-              Dashboard
-            </Link>
-
-
-            <Link
-              href="/equipment"
-              className="hover:text-blue-600"
-            >
-              Equipment
-            </Link>
-
-
-            <Link
-              href="/login"
-              className="hover:text-blue-600"
-            >
-              Logout
-            </Link>
-
-          </div>
-
-        </div>
-      </nav>
-
       <section className="mx-auto max-w-7xl px-6 py-10">
 
         <Link
