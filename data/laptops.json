@@ -1,0 +1,29 @@
+[
+    {
+      "id": 1,
+      "name": "Dell Latitude 7440",
+      "manufacturer": "Dell",
+      "cpu": "Intel Core i7-1365U",
+      "ram": "16 GB",
+      "storage": "512 GB SSD",
+      "status": "Available"
+    },
+    {
+      "id": 2,
+      "name": "Lenovo ThinkPad T14",
+      "manufacturer": "Lenovo",
+      "cpu": "AMD Ryzen 7 PRO",
+      "ram": "32 GB",
+      "storage": "1 TB SSD",
+      "status": "Assigned"
+    },
+    {
+      "id": 3,
+      "name": "HP EliteBook 840 G10",
+      "manufacturer": "HP",
+      "cpu": "Intel Core i5-1335U",
+      "ram": "16 GB",
+      "storage": "512 GB SSD",
+      "status": "Available"
+    }
+  ]
