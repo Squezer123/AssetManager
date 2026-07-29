@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import prisma from "../../../lib/prisma";
 import { withMinDelay } from "../../../lib/withMinDelay.js";
+import { auth } from "../../../auth";
 
 export default async function EquipmentDetails({ params }) {
   const { id } = await params;
+  const session = await auth();
 
   const equipment = await withMinDelay(
     prisma.equipment.findUnique({
@@ -24,6 +26,8 @@ export default async function EquipmentDetails({ params }) {
     notFound();
   }
 
+  const isHourlyMode = equipment.bufferDays === 0;
+
   const today = new Date();
   const activeReservation = equipment.reservations.find(
     (r) =>
@@ -40,6 +44,27 @@ export default async function EquipmentDetails({ params }) {
       : activeReservation
       ? "Rented"
       : "Available";
+
+  const isLoggedIn = Boolean(session?.user);
+  const isAvailable = availabilityLabel === "Available";
+  const canReserve = isAvailable && isLoggedIn;
+
+  const reserveButtonLabel = !isLoggedIn
+    ? "Log in to reserve"
+    : "Reserve equipment";
+
+  function formatReservationDate(date) {
+    const d = new Date(date);
+    return isHourlyMode
+      ? d.toLocaleString(undefined, {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : d.toLocaleDateString();
+  }
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -87,7 +112,7 @@ export default async function EquipmentDetails({ params }) {
               {activeReservation && (
                 <Info
                   label="Currently rented until"
-                  value={new Date(activeReservation.endDate).toLocaleDateString()}
+                  value={formatReservationDate(activeReservation.endDate)}
                 />
               )}
 
@@ -109,16 +134,21 @@ export default async function EquipmentDetails({ params }) {
 
             <SpecSection category={equipment.category} equipment={equipment} />
 
-            <Link
-              href={`/equipment/${equipment.id}/reserve`}
-              className={`mt-8 inline-block rounded-lg px-6 py-3 text-white ${
-                availabilityLabel === "Available"
-                  ? "bg-blue-600 hover:bg-blue-700"
-                  : "pointer-events-none bg-gray-300"
-              }`}
-            >
-              Reserve equipment
-            </Link>
+            {canReserve ? (
+              <Link
+                href={`/equipment/${equipment.id}/reserve`}
+                className="mt-8 inline-block rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700"
+              >
+                Reserve equipment
+              </Link>
+            ) : (
+              <span
+                className="mt-8 inline-block cursor-not-allowed rounded-lg bg-gray-300 px-6 py-3 text-white"
+                title={!isLoggedIn ? "Log in to reserve this equipment" : undefined}
+              >
+                {reserveButtonLabel}
+              </span>
+            )}
           </div>
         </div>
 
@@ -139,10 +169,8 @@ export default async function EquipmentDetails({ params }) {
               <tbody>
                 {equipment.reservations.map((r) => (
                   <tr key={r.id} className="border-b">
-                    <td className="py-3">
-                      {new Date(r.startDate).toLocaleDateString()}
-                    </td>
-                    <td>{new Date(r.endDate).toLocaleDateString()}</td>
+                    <td className="py-3">{formatReservationDate(r.startDate)}</td>
+                    <td>{formatReservationDate(r.endDate)}</td>
                     <td>{r.status}</td>
                   </tr>
                 ))}

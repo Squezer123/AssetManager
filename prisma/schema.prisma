@@ -93,8 +93,8 @@ model Reservation {
   id          String             @id @default(cuid())
   userId      String
   equipmentId String
-  startDate   DateTime           @db.Date
-  endDate     DateTime           @db.Date
+  startDate   DateTime           
+  endDate     DateTime           
   status      ReservationStatus  @default(ACTIVE)
   createdAt   DateTime           @default(now())
   returnedAt  DateTime?

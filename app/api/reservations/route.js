@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/auth';
-import { validateReservationInput } from '@/lib/validation/reservation';
+import {
+  validateDailyReservationInput,
+  validateHourlyReservationInput,
+} from '@/lib/validation/reservation';
 
 export async function POST(request) {
   try {
@@ -16,23 +19,19 @@ export async function POST(request) {
 
     const body = await request.json();
 
-    const { data, errors } = validateReservationInput(body);
-    if (errors.length > 0) {
+    if (typeof body.equipmentId !== "string" || body.equipmentId.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Błąd walidacji', details: errors },
+        { error: 'Błąd walidacji', details: ['Pole "equipmentId" jest wymagane'] },
         { status: 400 }
       );
     }
 
     const equipment = await prisma.equipment.findUnique({
-      where: { id: data.equipmentId },
+      where: { id: body.equipmentId },
     });
 
     if (!equipment) {
-      return NextResponse.json(
-        { error: 'Sprzęt nie znaleziony' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Sprzęt nie znaleziony' }, { status: 404 });
     }
 
     if (equipment.status !== 'AVAILABLE') {
@@ -42,25 +41,45 @@ export async function POST(request) {
       );
     }
 
-    const bufferMs = equipment.bufferDays * 24 * 60 * 60 * 1000;
-    const rangeStart = new Date(data.startDate.getTime() - bufferMs);
-    const rangeEnd = new Date(data.endDate.getTime() + bufferMs);
+    const isHourlyMode = equipment.bufferDays === 0;
 
-    const overlapping = await prisma.reservation.findFirst({
-      where: {
-        equipmentId: data.equipmentId,
-        status: 'ACTIVE',
-        startDate: { lte: rangeEnd },
-        endDate: { gte: rangeStart },
-      },
-    });
+    const { data, errors } = isHourlyMode
+      ? validateHourlyReservationInput(body)
+      : validateDailyReservationInput(body);
+
+    if (errors.length > 0) {
+      return NextResponse.json({ error: 'Błąd walidacji', details: errors }, { status: 400 });
+    }
+
+    let overlapping;
+
+    if (isHourlyMode) {
+      overlapping = await prisma.reservation.findFirst({
+        where: {
+          equipmentId: equipment.id,
+          status: 'ACTIVE',
+          startDate: { lt: data.endDate },
+          endDate: { gt: data.startDate },
+        },
+      });
+    } else {
+      const bufferMs = equipment.bufferDays * 24 * 60 * 60 * 1000;
+      const rangeStart = new Date(data.startDate.getTime() - bufferMs);
+      const rangeEnd = new Date(data.endDate.getTime() + bufferMs);
+
+      overlapping = await prisma.reservation.findFirst({
+        where: {
+          equipmentId: equipment.id,
+          status: 'ACTIVE',
+          startDate: { lte: rangeEnd },
+          endDate: { gte: rangeStart },
+        },
+      });
+    }
 
     if (overlapping) {
       return NextResponse.json(
-        {
-          error:
-            'Sprzęt jest już zarezerwowany w tym terminie (z uwzględnieniem bufora przygotowania)',
-        },
+        { error: 'Sprzęt jest już zarezerwowany w tym terminie' },
         { status: 409 }
       );
     }
@@ -68,24 +87,19 @@ export async function POST(request) {
     const reservation = await prisma.reservation.create({
       data: {
         userId: session.user.id,
-        equipmentId: data.equipmentId,
+        equipmentId: equipment.id,
         startDate: data.startDate,
         endDate: data.endDate,
         status: 'ACTIVE',
       },
       include: {
-        equipment: {
-          select: { id: true, name: true, category: true },
-        },
+        equipment: { select: { id: true, name: true, category: true } },
       },
     });
 
     return NextResponse.json({ data: reservation }, { status: 201 });
   } catch (error) {
     console.error('POST /api/reservations error:', error);
-    return NextResponse.json(
-      { error: 'Nie udało się utworzyć rezerwacji' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Nie udało się utworzyć rezerwacji' }, { status: 500 });
   }
 }
