@@ -22,7 +22,7 @@ A fullstack web application for managing company equipment rentals (laptops, pho
 ### 1. Clone the repository and install dependencies
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Squezer123/AssetManager
 cd assetsmanager
 npm install
 ```
