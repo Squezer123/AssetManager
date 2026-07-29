@@ -102,12 +102,10 @@ export async function PATCH(request, { params }) {
       const errors = [];
 
       if (phase === "IN_PROGRESS") {
-        // W trakcie: wolno tylko wydłużyć koniec, start zostaje bez zmian
         if (newEnd <= new Date(reservation.endDate)) {
           errors.push("Nową datę końca można tylko wydłużyć, nie skrócić");
         }
       } else {
-        // Przyszła: pełna edycja zakresu
         if (isNaN(newStart.getTime())) {
           errors.push('Pole "startDate" jest wymagane i musi być poprawną datą');
         }
@@ -123,7 +121,6 @@ export async function PATCH(request, { params }) {
         return NextResponse.json({ error: "Błąd walidacji", details: errors }, { status: 400 });
       }
 
-      // Walidacja kolizji — wykluczamy samą siebie z zapytania
       const equipment = reservation.equipment;
       const isHourlyMode = equipment.bufferDays === 0;
 

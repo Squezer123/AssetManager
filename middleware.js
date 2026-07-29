@@ -9,7 +9,7 @@ export default auth((req) => {
   const isProtectedApi = req.nextUrl.pathname.startsWith("/api/equipment");
 
   if (isAdminPage && (!isLoggedIn || !isAdmin)) {
-    const loginUrl = new URL("/equipment", req.nextUrl.origin);
+    const loginUrl = new URL("/", req.nextUrl.origin);
     loginUrl.searchParams.set("callbackUrl", req.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }

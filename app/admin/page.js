@@ -56,6 +56,12 @@ export default async function AdminDashboard() {
         >
           Zarządzaj sprzętem
         </Link>
+        <Link
+            href="/admin/reservations"
+            className="rounded-lg border border-slate-300 px-5 py-3 text-slate-700 hover:bg-slate-50"
+        >
+          Zarządzaj rezerwacjami
+        </Link>
       </div>
     </div>
   );

@@ -17,18 +17,46 @@ function startOfDay(d) {
   return copy;
 }
 
-export default function ReservationCalendar({ equipment }) {
+export default function ReservationCalendar({
+  equipment,
+  mode = "create",       
+  existingReservation = null, 
+}) {
   const router = useRouter();
   const isHourlyMode = equipment.bufferDays === 0;
+  const isEdit = mode === "edit" && existingReservation;
 
-  const [reservations, setReservations] = useState(equipment.reservations ?? []);
-  const [currentMonth, setCurrentMonth] = useState(startOfDay(new Date()));
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [rangeStart, setRangeStart] = useState(null);
+  const now = new Date();
+  const hasStarted = isEdit && new Date(existingReservation.startDate) <= now;
 
-  // Nowy stan: zakres GODZIN w ramach wybranego dnia (tryb godzinowy)
-  const [hourRangeStart, setHourRangeStart] = useState(null);
-  const [hourRangeEnd, setHourRangeEnd] = useState(null);
+  const excludeSelf = (list) =>
+    isEdit ? list.filter((r) => r.id !== existingReservation.id) : list;
+
+  const [reservations, setReservations] = useState(
+    excludeSelf(equipment.reservations ?? [])
+  );
+  const [currentMonth, setCurrentMonth] = useState(
+    isEdit ? startOfDay(existingReservation.startDate) : startOfDay(new Date())
+  );
+
+  // Stan wstępnie wypełniony danymi edytowanej rezerwacji
+  const [selectedDay, setSelectedDay] = useState(
+    isEdit
+      ? isHourlyMode
+        ? startOfDay(existingReservation.startDate).getTime()
+        : startOfDay(existingReservation.endDate).getTime()
+      : null
+  );
+  const [rangeStart, setRangeStart] = useState(
+    isEdit && !isHourlyMode ? startOfDay(existingReservation.startDate).getTime() : null
+  );
+
+  const [hourRangeStart, setHourRangeStart] = useState(
+    isEdit && isHourlyMode ? new Date(existingReservation.startDate).getHours() : null
+  );
+  const [hourRangeEnd, setHourRangeEnd] = useState(
+    isEdit && isHourlyMode ? new Date(existingReservation.endDate).getHours() - 1 : null
+  );
 
   const [errors, setErrors] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -38,7 +66,7 @@ export default function ReservationCalendar({ equipment }) {
       .then((res) => res.json())
       .then((json) => {
         if (json?.data?.reservations) {
-          setReservations(json.data.reservations);
+          setReservations(excludeSelf(json.data.reservations));
         }
       })
       .catch(() => {});
@@ -64,6 +92,10 @@ export default function ReservationCalendar({ equipment }) {
     const dayStart = startOfDay(day);
 
     if (dayStart < today) return true;
+
+    if (isEdit && hasStarted && !isHourlyMode) {
+      if (dayStart < startOfDay(existingReservation.endDate)) return true;
+    }
 
     if (isHourlyMode) {
       for (let h = BUSINESS_HOUR_START; h < BUSINESS_HOUR_END; h++) {
@@ -93,6 +125,12 @@ export default function ReservationCalendar({ equipment }) {
     });
   }
 
+  function isHourLockedForExtendOnly(hour) {
+    if (!(isEdit && hasStarted && isHourlyMode)) return false;
+    const originalEndHour = new Date(existingReservation.endDate).getHours() - 1;
+    return hour < originalEndHour;
+  }
+
   function isDayInSelectedRange(day) {
     if (isHourlyMode || !rangeStart || !selectedDay) return false;
     const d = startOfDay(day).getTime();
@@ -109,9 +147,15 @@ export default function ReservationCalendar({ equipment }) {
     setErrors([]);
 
     if (isHourlyMode) {
+      if (isEdit && hasStarted) return;
       setSelectedDay(startOfDay(day).getTime());
       setHourRangeStart(null);
       setHourRangeEnd(null);
+      return;
+    }
+
+    if (isEdit && hasStarted) {
+      setSelectedDay(startOfDay(day).getTime());
       return;
     }
 
@@ -125,7 +169,13 @@ export default function ReservationCalendar({ equipment }) {
 
   function handleHourClick(hour) {
     if (isHourTaken(new Date(selectedDay), hour)) return;
+    if (isHourLockedForExtendOnly(hour)) return;
     setErrors([]);
+
+    if (isEdit && hasStarted) {
+      setHourRangeEnd(hour);
+      return;
+    }
 
     if (hourRangeStart == null) {
       setHourRangeStart(hour);
@@ -135,23 +185,21 @@ export default function ReservationCalendar({ equipment }) {
     }
   }
 
-  async function confirmDailyReservation() {
-    if (!rangeStart || !selectedDay) return;
+  async function submitReservation(startDate, endDate) {
     setSubmitting(true);
     setErrors([]);
 
-    const start = new Date(Math.min(rangeStart, selectedDay));
-    const end = new Date(Math.max(rangeStart, selectedDay));
-
     try {
-      const res = await fetch("/api/reservations", {
-        method: "POST",
+      const url = isEdit ? `/api/reservations/${existingReservation.id}` : "/api/reservations";
+      const method = isEdit ? "PATCH" : "POST";
+      const body = isEdit
+        ? { action: "edit", startDate: startDate.toISOString(), endDate: endDate.toISOString() }
+        : { equipmentId: equipment.id, startDate: startDate.toISOString(), endDate: endDate.toISOString() };
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          equipmentId: equipment.id,
-          startDate: start.toISOString(),
-          endDate: end.toISOString(),
-        }),
+        body: JSON.stringify(body),
       });
       const json = await res.json();
 
@@ -161,7 +209,7 @@ export default function ReservationCalendar({ equipment }) {
         return;
       }
 
-      router.push(`/equipment/${equipment.id}`);
+      router.push(isEdit ? "/" : `/equipment/${equipment.id}`);
       router.refresh();
     } catch {
       setErrors(["Nie udało się połączyć z serwerem"]);
@@ -169,7 +217,14 @@ export default function ReservationCalendar({ equipment }) {
     }
   }
 
-  async function confirmHourlyReservation() {
+  function confirmDailyReservation() {
+    if (!rangeStart || !selectedDay) return;
+    const start = new Date(Math.min(rangeStart, selectedDay));
+    const end = new Date(Math.max(rangeStart, selectedDay));
+    submitReservation(start, end);
+  }
+
+  function confirmHourlyReservation() {
     if (hourRangeStart == null || hourRangeEnd == null || !selectedDay) return;
 
     const startHour = Math.min(hourRangeStart, hourRangeEnd);
@@ -182,50 +237,31 @@ export default function ReservationCalendar({ equipment }) {
       }
     }
 
-    setSubmitting(true);
-    setErrors([]);
-
     const start = new Date(selectedDay);
     start.setHours(startHour, 0, 0, 0);
     const end = new Date(selectedDay);
-    end.setHours(endHour + 1, 0, 0, 0); 
-
-    try {
-      const res = await fetch("/api/reservations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          equipmentId: equipment.id,
-          startDate: start.toISOString(),
-          endDate: end.toISOString(),
-        }),
-      });
-      const json = await res.json();
-
-      if (!res.ok) {
-        setErrors(json.details ?? [json.error ?? "Wystąpił błąd"]);
-        setSubmitting(false);
-        return;
-      }
-
-      router.push(`/equipment/${equipment.id}`);
-      router.refresh();
-    } catch {
-      setErrors(["Nie udało się połączyć z serwerem"]);
-      setSubmitting(false);
-    }
+    end.setHours(endHour + 1, 0, 0, 0);
+    submitReservation(start, end);
   }
 
   function changeMonth(delta) {
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
-    setSelectedDay(null);
-    setRangeStart(null);
-    setHourRangeStart(null);
-    setHourRangeEnd(null);
+    if (!isEdit) {
+      setSelectedDay(null);
+      setRangeStart(null);
+      setHourRangeStart(null);
+      setHourRangeEnd(null);
+    }
   }
 
   return (
     <div className="space-y-6">
+      {isEdit && hasStarted && (
+        <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-700">
+          Ta rezerwacja już się rozpoczęła — możesz ją tylko przedłużyć, nie skrócić ani zmienić daty startu.
+        </div>
+      )}
+
       {errors.length > 0 && (
         <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700">
           <ul className="list-inside list-disc">
@@ -299,7 +335,9 @@ export default function ReservationCalendar({ equipment }) {
             Wybierz godziny — {new Date(selectedDay).toLocaleDateString()}
           </h3>
           <p className="mb-4 text-xs text-slate-500">
-            Kliknij godzinę początkową, a potem końcową (można wybrać tylko jedną — minimum to 1 godzina).
+            {isEdit && hasStarted
+              ? "Kliknij godzinę, do której chcesz przedłużyć rezerwację."
+              : "Kliknij godzinę początkową, a potem końcową (można wybrać tylko jedną — minimum to 1 godzina)."}
           </p>
 
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -308,15 +346,16 @@ export default function ReservationCalendar({ equipment }) {
               (_, i) => BUSINESS_HOUR_START + i
             ).map((hour) => {
               const taken = isHourTaken(new Date(selectedDay), hour);
+              const locked = isHourLockedForExtendOnly(hour);
               const inRange = isHourInSelectedRange(hour);
               return (
                 <button
                   key={hour}
                   type="button"
-                  disabled={taken}
+                  disabled={taken || locked}
                   onClick={() => handleHourClick(hour)}
                   className={`rounded-lg px-3 py-2 text-sm transition-colors ${
-                    taken
+                    taken || locked
                       ? "cursor-not-allowed bg-slate-100 text-slate-300"
                       : inRange
                       ? "bg-blue-600 text-white"
@@ -345,18 +384,20 @@ export default function ReservationCalendar({ equipment }) {
                   disabled={submitting}
                   className="rounded-lg bg-blue-600 px-5 py-2.5 text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {submitting ? "Rezerwowanie..." : "Potwierdź rezerwację"}
+                  {submitting ? "Zapisywanie..." : isEdit ? "Zapisz zmiany" : "Potwierdź rezerwację"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHourRangeStart(null);
-                    setHourRangeEnd(null);
-                  }}
-                  className="rounded-lg border border-slate-300 px-5 py-2.5 text-slate-700 hover:bg-slate-50"
-                >
-                  Wyczyść
-                </button>
+                {!isEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHourRangeStart(null);
+                      setHourRangeEnd(null);
+                    }}
+                    className="rounded-lg border border-slate-300 px-5 py-2.5 text-slate-700 hover:bg-slate-50"
+                  >
+                    Wyczyść
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -377,18 +418,20 @@ export default function ReservationCalendar({ equipment }) {
               disabled={submitting}
               className="rounded-lg bg-blue-600 px-5 py-2.5 text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {submitting ? "Rezerwowanie..." : "Potwierdź rezerwację"}
+              {submitting ? "Zapisywanie..." : isEdit ? "Zapisz zmiany" : "Potwierdź rezerwację"}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRangeStart(null);
-                setSelectedDay(null);
-              }}
-              className="rounded-lg border border-slate-300 px-5 py-2.5 text-slate-700 hover:bg-slate-50"
-            >
-              Wyczyść
-            </button>
+            {!isEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRangeStart(null);
+                  setSelectedDay(null);
+                }}
+                className="rounded-lg border border-slate-300 px-5 py-2.5 text-slate-700 hover:bg-slate-50"
+              >
+                Wyczyść
+              </button>
+            )}
           </div>
         </div>
       )}

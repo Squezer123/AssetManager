@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
+import ReservationActions from "@/components/reservationactions";
 
 export default async function Home() {
   const session = await auth();
@@ -52,6 +53,7 @@ export default async function Home() {
                   <th>Od</th>
                   <th>Do</th>
                   <th>Status</th>
+                  <th>Akcje</th>
                 </tr>
               </thead>
               <tbody>
@@ -69,6 +71,9 @@ export default async function Home() {
                     </td>
                     <td>
                       <ReservationStatusBadge status={r.status} />
+                    </td>
+                    <td className="py-3">
+                      <ReservationActions reservation={r} isAdmin={false} />
                     </td>
                   </tr>
                 ))}
