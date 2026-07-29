@@ -102,7 +102,7 @@ model Reservation {
   cancelledBy String?
 
   user      User      @relation(fields: [userId], references: [id])
-  equipment Equipment @relation(fields: [equipmentId], references: [id])
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
 
   @@index([equipmentId, startDate, endDate])
 }
