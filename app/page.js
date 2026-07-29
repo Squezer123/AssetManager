@@ -1,50 +1,96 @@
-export default function Home() {
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import prisma from "@/lib/prisma";
+
+export default async function Home() {
+  const session = await auth();
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  const reservations = await prisma.reservation.findMany({
+    where: { userId: session.user.id },
+    include: {
+      equipment: {
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          imageUrl: true,
+        },
+      },
+    },
+    orderBy: { startDate: "desc" },
+  });
+
   return (
-    <div className="flex flex-1 items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-xl font-semibold text-gray-900">
-          Zaloguj się
-        </h1>
+    <div className="min-h-screen bg-gray-50 px-4 py-10">
+      <div className="mx-auto max-w-3xl">
+        <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Witaj, {session.user.name ?? session.user.email}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">{session.user.email}</p>
+        </div>
 
-        <form className="space-y-4">
-          <div>
-            <label
-              htmlFor="email"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              placeholder="jan.kowalski@firma.pl"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
-            />
-          </div>
+        <div className="mt-8 rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Twoje rezerwacje
+          </h2>
 
-          <div>
-            <label
-              htmlFor="password"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Hasło
-            </label>
-            <input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
-          >
-            Zaloguj się
-          </button>
-        </form>
+          {reservations.length === 0 ? (
+            <p className="mt-4 text-sm text-gray-500">
+              Nie masz jeszcze żadnych rezerwacji.
+            </p>
+          ) : (
+            <table className="mt-4 w-full border-collapse">
+              <thead>
+                <tr className="border-b text-left text-sm text-gray-500">
+                  <th className="py-3">Sprzęt</th>
+                  <th>Kategoria</th>
+                  <th>Od</th>
+                  <th>Do</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reservations.map((r) => (
+                  <tr key={r.id} className="border-b text-sm">
+                    <td className="py-3 font-medium text-gray-900">
+                      {r.equipment.name}
+                    </td>
+                    <td className="text-gray-600">{r.equipment.category}</td>
+                    <td className="text-gray-600">
+                      {new Date(r.startDate).toLocaleDateString()}
+                    </td>
+                    <td className="text-gray-600">
+                      {new Date(r.endDate).toLocaleDateString()}
+                    </td>
+                    <td>
+                      <ReservationStatusBadge status={r.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+function ReservationStatusBadge({ status }) {
+  const styles = {
+    ACTIVE: "bg-green-100 text-green-700",
+    RETURNED: "bg-gray-200 text-gray-700",
+    CANCELLED: "bg-red-100 text-red-700",
+  };
+
+  return (
+    <span className={`inline-block rounded-full px-3 py-1 text-xs ${styles[status]}`}>
+      {status}
+    </span>
   );
 }
