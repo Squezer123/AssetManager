@@ -9,9 +9,7 @@ export default function Header({}){
             Asset Manager
           </h1>
 
-
           <div className="flex gap-8">
-
             <Link 
               href="/"
               className="hover:text-blue-600"
@@ -19,24 +17,13 @@ export default function Header({}){
               Dashboard
             </Link>
 
-
             <Link
               href="/equipment"
               className="hover:text-blue-600"
             >
               Equipment
             </Link>
-
-
-            <Link
-              href="/login"
-              className="hover:text-blue-600"
-            >
-              Login
-            </Link>
-
           </div>
-
         </div>
       </nav>
     );

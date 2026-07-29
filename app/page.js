@@ -1,95 +1,50 @@
-import Link from "next/link";
-import laptops from "../data/laptops.json";
-
 export default function Home() {
   return (
-    <main className="min-h-screen bg-slate-100">
-      <nav className="border-b bg-white shadow-sm">
-      </nav>
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
+        <h1 className="mb-6 text-xl font-semibold text-gray-900">
+          Zaloguj się
+        </h1>
 
-      <section className="mx-auto max-w-7xl px-6 py-10">
-        <h2 className="text-4xl font-bold text-slate-900">
-          Dashboard
-        </h2>
-
-        <p className="mt-2 text-slate-600">
-          Welcome to the Asset Management System.
-        </p>
-
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          <div className="rounded-xl bg-white p-6 shadow">
-            <p className="text-sm text-gray-500">Total laptops</p>
-            <h3 className="mt-2 text-4xl font-bold">
-              {laptops.length}
-            </h3>
+        <form className="space-y-4">
+          <div>
+            <label
+              htmlFor="email"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              placeholder="jan.kowalski@firma.pl"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
+            />
           </div>
 
-          <div className="rounded-xl bg-white p-6 shadow">
-            <p className="text-sm text-gray-500">Available</p>
-            <h3 className="mt-2 text-4xl font-bold text-green-600">
-              {laptops.filter(l => l.status === "Available").length}
-            </h3>
+          <div>
+            <label
+              htmlFor="password"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Hasło
+            </label>
+            <input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
+            />
           </div>
 
-          <div className="rounded-xl bg-white p-6 shadow">
-            <p className="text-sm text-gray-500">Assigned</p>
-            <h3 className="mt-2 text-4xl font-bold text-orange-500">
-              {laptops.filter(l => l.status === "Assigned").length}
-            </h3>
-          </div>
-        </div>
-
-        <div className="mt-12 rounded-xl bg-white p-6 shadow">
-          <h3 className="mb-6 text-2xl font-semibold">
-            Latest equipment
-          </h3>
-
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="py-3">Laptop</th>
-                <th>Manufacturer</th>
-                <th>CPU</th>
-                <th>RAM</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {laptops.map((laptop) => (
-                <tr
-                  key={laptop.id}
-                  className="border-b hover:bg-slate-50"
-                >
-                  <td className="py-4 font-medium">
-                    <Link href={`../equipment/${laptop.id}`} className="text-blue-600 hover:underline">
-                      {laptop.name}
-                    </Link>
-                  </td>
-
-                  <td>{laptop.manufacturer}</td>
-
-                  <td>{laptop.cpu}</td>
-
-                  <td>{laptop.ram}</td>
-
-                  <td>
-                    <span
-                      className={`rounded-full px-3 py-1 text-sm ${
-                        laptop.status === "Available"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-orange-100 text-orange-700"
-                      }`}
-                    >
-                      {laptop.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </main>
+          <button
+            type="submit"
+            className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+          >
+            Zaloguj się
+          </button>
+        </form>
+      </div>
+    </div>
   );
-} 
+}
