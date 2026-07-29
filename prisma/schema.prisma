@@ -18,6 +18,13 @@ enum EquipmentStatus {
   RETIRED
 }
 
+enum EquipmentCategory {
+  LAPTOP
+  PHONE
+  CAMERA
+  OTHER
+}
+
 enum ReservationStatus {
   ACTIVE
   CANCELLED
@@ -38,11 +45,48 @@ model Equipment {
   id           String            @id @default(cuid())
   name         String
   description  String?
-  category     String?
+  category     EquipmentCategory
   status       EquipmentStatus   @default(AVAILABLE)
   bufferDays   Int               @default(1)
+  imageUrl     String?
   createdAt    DateTime          @default(now())
+
   reservations Reservation[]
+  laptopSpec   LaptopSpec?
+  phoneSpec    PhoneSpec?
+  cameraSpec   CameraSpec?
+}
+
+model LaptopSpec {
+  id           String    @id @default(cuid())
+  equipmentId  String    @unique
+  equipment    Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  manufacturer String
+  cpu          String
+  ram          String
+  storage      String
+  os           String
+}
+
+model PhoneSpec {
+  id           String    @id @default(cuid())
+  equipmentId  String    @unique
+  equipment    Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  manufacturer String
+  model        String
+  storage      String
+  os           String
+  imei         String?
+}
+
+model CameraSpec {
+  id           String    @id @default(cuid())
+  equipmentId  String    @unique
+  equipment    Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  manufacturer String
+  sensorType   String?
+  resolution   String?
+  lensMount    String?
 }
 
 model Reservation {

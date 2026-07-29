@@ -5,6 +5,9 @@ const prisma = new PrismaClient();
 
 async function main() {
   await prisma.reservation.deleteMany();
+  await prisma.laptopSpec.deleteMany();
+  await prisma.phoneSpec.deleteMany();
+  await prisma.cameraSpec.deleteMany();
   await prisma.equipment.deleteMany();
   await prisma.user.deleteMany();
 
@@ -39,11 +42,60 @@ async function main() {
 
   const laptop = await prisma.equipment.create({
     data: {
-      name: "MacBook Pro 14\" M3",
+      name: 'MacBook Pro 14" M3',
       description: "Laptop developerski, 16GB RAM, 512GB SSD",
-      category: "Laptopy",
+      category: "LAPTOP",
       status: "AVAILABLE",
       bufferDays: 1,
+      imageUrl: "https://placehold.co/600x400?text=MacBook+Pro",
+      laptopSpec: {
+        create: {
+          manufacturer: "Apple",
+          cpu: "M3 Pro",
+          ram: "16GB",
+          storage: "512GB SSD",
+          os: "macOS Sonoma",
+        },
+      },
+    },
+  });
+
+  const phone = await prisma.equipment.create({
+    data: {
+      name: "iPhone 15",
+      description: "Telefon służbowy do testów i prezentacji",
+      category: "PHONE",
+      status: "AVAILABLE",
+      bufferDays: 0,
+      imageUrl: "https://placehold.co/600x400?text=MacBook+Pro",
+      phoneSpec: {
+        create: {
+          manufacturer: "Apple",
+          model: "iPhone 15",
+          storage: "128GB",
+          os: "iOS 17",
+          imei: "123456789012345",
+        },
+      },
+    },
+  });
+
+  const camera = await prisma.equipment.create({
+    data: {
+      name: "Canon EOS R6",
+      description: "Aparat do materiałów marketingowych",
+      category: "CAMERA",
+      status: "AVAILABLE",
+      bufferDays: 1,
+      imageUrl: "https://placehold.co/600x400?text=MacBook+Pro",
+      cameraSpec: {
+        create: {
+          manufacturer: "Canon",
+          sensorType: "Full-frame CMOS",
+          resolution: "20MP",
+          lensMount: "RF",
+        },
+      },
     },
   });
 
@@ -51,27 +103,17 @@ async function main() {
     data: {
       name: "Projektor Epson EB-X41",
       description: "Projektor do sal konferencyjnych",
-      category: "Prezentacje",
+      category: "OTHER",
       status: "AVAILABLE",
       bufferDays: 0,
     },
   });
 
-  const camera = await prisma.equipment.create({
-    data: {
-      name: "Aparat Canon EOS R6",
-      description: "Aparat do materiałów marketingowych",
-      category: "Foto/Wideo",
-      status: "AVAILABLE",
-      bufferDays: 1,
-    },
-  });
-
   await prisma.equipment.create({
     data: {
-      name: "Monitor Dell 27\" 4K",
+      name: 'Monitor Dell 27" 4K',
       description: "Monitor zewnętrzny do stanowiska hybrydowego",
-      category: "Akcesoria",
+      category: "OTHER",
       status: "MAINTENANCE",
       bufferDays: 0,
     },
@@ -100,7 +142,7 @@ async function main() {
 
   console.log("Seed zakończony:");
   console.log({ admin: admin.email, user1: user1.email, user2: user2.email });
-  console.log("Sprzęt:", [laptop.name, projector.name, camera.name]);
+  console.log("Sprzęt:", [laptop.name, phone.name, camera.name, projector.name]);
 }
 
 main()
