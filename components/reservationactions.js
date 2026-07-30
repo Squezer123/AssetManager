@@ -59,17 +59,20 @@ export default function ReservationActions({ reservation, isAdmin }) {
     return <span className="text-sm text-slate-400">—</span>;
   }
 
+  const baseButton =
+    "w-full sm:w-auto rounded-lg border px-3 py-2 text-sm sm:py-1.5 sm:text-xs transition-colors disabled:opacity-50";
+
   return (
     <div className="space-y-2">
       {error && <p className="text-xs text-red-600">{error}</p>}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {!hasStarted && (
           <button
             type="button"
             disabled={loading}
             onClick={() => callAction("cancel")}
-            className="rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className={`${baseButton} border-red-300 text-red-700 hover:bg-red-50`}
           >
             Anuluj
           </button>
@@ -79,7 +82,7 @@ export default function ReservationActions({ reservation, isAdmin }) {
           type="button"
           disabled={loading}
           onClick={() => setEditing((prev) => !prev)}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className={`${baseButton} border-slate-300 text-slate-700 hover:bg-slate-50`}
         >
           {editing ? "Zwiń" : hasStarted ? "Przedłuż" : "Edytuj"}
         </button>
@@ -89,7 +92,7 @@ export default function ReservationActions({ reservation, isAdmin }) {
             type="button"
             disabled={loading}
             onClick={() => callAction("return")}
-            className="rounded-lg border border-green-300 px-3 py-1.5 text-xs text-green-700 hover:bg-green-50 disabled:opacity-50"
+            className={`${baseButton} border-green-300 text-green-700 hover:bg-green-50`}
           >
             Oznacz jako zwrócony
           </button>
@@ -100,7 +103,7 @@ export default function ReservationActions({ reservation, isAdmin }) {
             type="button"
             disabled={loading}
             onClick={handleDelete}
-            className="rounded-lg border border-red-400 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+            className={`${baseButton} border-red-400 bg-red-50 font-medium text-red-700 hover:bg-red-100`}
           >
             Usuń całkowicie
           </button>
@@ -108,7 +111,7 @@ export default function ReservationActions({ reservation, isAdmin }) {
       </div>
 
       {editing && (
-        <div className="mt-4 max-w-xl">
+        <div className="mt-4 w-full sm:max-w-xl">
           <ReservationCalendar
             equipment={reservation.equipment}
             mode="edit"

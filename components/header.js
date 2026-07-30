@@ -1,30 +1,23 @@
 import Link from "next/link";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
+import { logoutAction } from "@/app/actions/auth";
+import MobileNav from "@/components/mobilenav";
 
 export default async function Header() {
   const session = await auth();
   const isAdmin = session?.user?.role === "ADMIN";
 
   return (
-    <nav className="border-b bg-white shadow-sm">
+    <nav className="relative border-b bg-white shadow-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+        <h1 className="text-2xl font-bold text-slate-800">Asset Manager</h1>
 
-        <h1 className="text-2xl font-bold text-slate-800">
-          Asset Manager
-        </h1>
-
-        <div className="flex items-center gap-8">
-          <Link
-            href="/"
-            className="hover:text-blue-600"
-          >
+        <div className="hidden items-center gap-8 md:flex">
+          <Link href="/" className="hover:text-blue-600">
             Dashboard
           </Link>
 
-          <Link
-            href="/equipment"
-            className="hover:text-blue-600"
-          >
+          <Link href="/equipment" className="hover:text-blue-600">
             Equipment
           </Link>
 
@@ -39,15 +32,8 @@ export default async function Header() {
 
           {session?.user ? (
             <div className="flex items-center gap-4">
-              <span className="text-sm text-slate-500">
-                {session.user.email}
-              </span>
-              <form
-                action={async () => {
-                  "use server";
-                  await signOut({ redirectTo: "/" });
-                }}
-              >
+              <span className="text-sm text-slate-500">{session.user.email}</span>
+              <form action={logoutAction}>
                 <button
                   type="submit"
                   className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
@@ -65,6 +51,12 @@ export default async function Header() {
             </Link>
           )}
         </div>
+
+        <MobileNav
+          isAdmin={isAdmin}
+          userEmail={session?.user?.email}
+          isLoggedIn={Boolean(session?.user)}
+        />
       </div>
     </nav>
   );

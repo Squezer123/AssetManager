@@ -28,37 +28,37 @@ export default async function EquipmentPage() {
     <main className="min-h-screen bg-slate-100">
       <nav className="border-b bg-white shadow-sm"></nav>
 
-      <section className="mx-auto max-w-7xl px-6 py-10">
-        <h2 className="text-4xl font-bold text-slate-900">Dashboard</h2>
-        <p className="mt-2 text-slate-600">
+      <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
+        <h2 className="text-2xl font-bold text-slate-900 sm:text-4xl">Dashboard</h2>
+        <p className="mt-2 text-sm text-slate-600 sm:text-base">
           Welcome to the Asset Management System.
         </p>
 
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          <div className="rounded-xl bg-white p-6 shadow">
-            <p className="text-sm text-gray-500">Total equipment</p>
-            <h3 className="mt-2 text-4xl font-bold">{total}</h3>
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:mt-10 sm:grid-cols-3 sm:gap-6">
+          <div className="rounded-xl bg-white p-4 shadow sm:p-6">
+            <p className="text-xs text-gray-500 sm:text-sm">Total equipment</p>
+            <h3 className="mt-2 text-2xl font-bold sm:text-4xl">{total}</h3>
           </div>
 
-          <div className="rounded-xl bg-white p-6 shadow">
-            <p className="text-sm text-gray-500">Available</p>
-            <h3 className="mt-2 text-4xl font-bold text-green-600">
+          <div className="rounded-xl bg-white p-4 shadow sm:p-6">
+            <p className="text-xs text-gray-500 sm:text-sm">Available</p>
+            <h3 className="mt-2 text-2xl font-bold text-green-600 sm:text-4xl">
               {available}
             </h3>
           </div>
 
-          <div className="rounded-xl bg-white p-6 shadow">
-            <p className="text-sm text-gray-500">Currently rented</p>
-            <h3 className="mt-2 text-4xl font-bold text-orange-500">
+          <div className="col-span-2 rounded-xl bg-white p-4 shadow sm:col-span-1 sm:p-6">
+            <p className="text-xs text-gray-500 sm:text-sm">Currently rented</p>
+            <h3 className="mt-2 text-2xl font-bold text-orange-500 sm:text-4xl">
               {rented}
             </h3>
           </div>
         </div>
 
-        <div className="mt-12 rounded-xl bg-white p-6 shadow">
-          <h3 className="mb-6 text-2xl font-semibold">Latest equipment</h3>
+        <div className="mt-8 rounded-xl bg-white p-4 shadow sm:mt-12 sm:p-6">
+          <h3 className="mb-4 text-lg font-semibold sm:mb-6 sm:text-2xl">Latest equipment</h3>
 
-          <table className="w-full border-collapse">
+          <table className="hidden w-full border-collapse md:table">
             <thead>
               <tr className="border-b text-left">
                 <th className="py-3">Name</th>
@@ -116,6 +116,49 @@ export default async function EquipmentPage() {
               })}
             </tbody>
           </table>
+
+          <div className="space-y-3 md:hidden">
+            {equipment.map((item) => {
+              const isRented = item.reservations.length > 0;
+              const label =
+                item.status === "MAINTENANCE"
+                  ? "Maintenance"
+                  : item.status === "RETIRED"
+                  ? "Retired"
+                  : isRented
+                  ? "Rented"
+                  : "Available";
+
+              return (
+                <Link
+                  key={item.id}
+                  href={`../equipment/${item.id}`}
+                  className="block rounded-md border border-slate-100 p-4 active:bg-slate-50"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-medium text-slate-900">{item.name}</p>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs ${
+                        label === "Available"
+                          ? "bg-green-100 text-green-700"
+                          : label === "Rented"
+                          ? "bg-orange-100 text-orange-700"
+                          : "bg-gray-200 text-gray-700"
+                      }`}
+                    >
+                      {label}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-sm text-slate-500">{item.category ?? "—"}</p>
+
+                  {item.description && (
+                    <p className="mt-2 text-sm text-slate-600">{item.description}</p>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </section>
     </main>
