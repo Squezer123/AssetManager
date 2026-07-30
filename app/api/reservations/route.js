@@ -2,202 +2,201 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { auth } from "@/auth";
 
-function getPhase(reservation) {
-  if (reservation.status !== "ACTIVE") return "CLOSED";
-  const now = new Date();
-  if (new Date(reservation.startDate) > now) return "FUTURE";
-  return "IN_PROGRESS";
+const BUSINESS_HOUR_START = 8;
+const BUSINESS_HOUR_END = 18;
+
+function startOfDay(d) {
+  const copy = new Date(d);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
 }
 
-export async function PATCH(request, { params }) {
+function validateReservationDates(startDate, endDate, isHourlyMode) {
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    return { error: 'Pola "startDate" i "endDate" muszą być poprawnymi datami' };
+  }
+
+  if (!isHourlyMode) {
+    const start = startOfDay(startDate);
+    const end = startOfDay(endDate);
+    const today = startOfDay(new Date());
+
+    if (start < today) {
+      return { error: "Data rozpoczęcia nie może być w przeszłości" };
+    }
+    if (end < start) {
+      return { error: "Data zakończenia nie może być wcześniejsza niż data rozpoczęcia" };
+    }
+
+    const diffDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+    if (diffDays > 30) {
+      return { error: "Rezerwacja nie może przekraczać 30 dni" };
+    }
+
+    return { startDate: start, endDate: end };
+  }
+
+  // Tryb godzinowy
+  const now = new Date();
+  if (startDate < now) {
+    return { error: "Wybrany termin jest w przeszłości" };
+  }
+  if (endDate <= startDate) {
+    return { error: "Godzina zakończenia musi być późniejsza niż godzina rozpoczęcia" };
+  }
+
+  const sameDay =
+    startDate.getFullYear() === endDate.getFullYear() &&
+    startDate.getMonth() === endDate.getMonth() &&
+    startDate.getDate() === endDate.getDate();
+  if (!sameDay) {
+    return { error: "Rezerwacja godzinowa musi mieścić się w obrębie jednego dnia" };
+  }
+
+  const isWholeHour = (d) => d.getMinutes() === 0 && d.getSeconds() === 0;
+  if (!isWholeHour(startDate) || !isWholeHour(endDate)) {
+    return { error: "Godziny rezerwacji muszą zaczynać się o pełnej godzinie" };
+  }
+
+  if (
+    startDate.getHours() < BUSINESS_HOUR_START ||
+    endDate.getHours() > BUSINESS_HOUR_END ||
+    (endDate.getHours() === BUSINESS_HOUR_END && endDate.getMinutes() > 0)
+  ) {
+    return {
+      error: `Rezerwacja musi mieścić się w godzinach ${BUSINESS_HOUR_START}:00-${BUSINESS_HOUR_END}:00`,
+    };
+  }
+
+  const diffHours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+  if (diffHours < 1) {
+    return { error: "Minimalny czas rezerwacji to 1 godzina" };
+  }
+
+  return { startDate, endDate };
+}
+
+async function findCollision(equipment, startDate, endDate) {
+  const isHourlyMode = equipment.bufferDays === 0;
+
+  const baseWhere = {
+    equipmentId: equipment.id,
+    status: "ACTIVE",
+  };
+
+  if (isHourlyMode) {
+    return prisma.reservation.findFirst({
+      where: {
+        ...baseWhere,
+        startDate: { lt: endDate },
+        endDate: { gt: startDate },
+      },
+    });
+  }
+
+  const bufferMs = equipment.bufferDays * 24 * 60 * 60 * 1000;
+  const rangeStart = new Date(startDate.getTime() - bufferMs);
+  const rangeEnd = new Date(endDate.getTime() + bufferMs);
+
+  return prisma.reservation.findFirst({
+    where: {
+      ...baseWhere,
+      startDate: { lte: rangeEnd },
+      endDate: { gte: rangeStart },
+    },
+  });
+}
+
+export async function GET() {
   try {
-    const { id } = await params;
     const session = await auth();
 
     if (!session?.user) {
       return NextResponse.json({ error: "Musisz być zalogowany" }, { status: 401 });
     }
 
-    const reservation = await prisma.reservation.findUnique({
-      where: { id },
-      include: { equipment: true },
-    });
-
-    if (!reservation) {
-      return NextResponse.json({ error: "Rezerwacja nie znaleziona" }, { status: 404 });
-    }
-
-    const isOwner = reservation.userId === session.user.id;
     const isAdmin = session.user.role === "ADMIN";
 
-    if (!isOwner && !isAdmin) {
-      return NextResponse.json({ error: "Brak dostępu do tej rezerwacji" }, { status: 403 });
+    const reservations = isAdmin
+      ? await prisma.reservation.findMany({
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+            equipment: true,
+          },
+          orderBy: { startDate: "desc" },
+        })
+      : await prisma.reservation.findMany({
+          where: { userId: session.user.id },
+          include: { equipment: true },
+          orderBy: { startDate: "desc" },
+        });
+
+    return NextResponse.json({ data: reservations });
+  } catch (error) {
+    console.error("GET /api/reservations error:", error);
+    return NextResponse.json({ error: "Nie udało się pobrać rezerwacji" }, { status: 500 });
+  }
+}
+
+export async function POST(request) {
+  try {
+    const session = await auth();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Musisz być zalogowany" }, { status: 401 });
     }
 
-    const phase = getPhase(reservation);
-    if (phase === "CLOSED") {
+    const body = await request.json();
+    const { equipmentId, startDate: rawStart, endDate: rawEnd } = body;
+
+    if (!equipmentId) {
+      return NextResponse.json({ error: 'Pole "equipmentId" jest wymagane' }, { status: 400 });
+    }
+
+    const equipment = await prisma.equipment.findUnique({ where: { id: equipmentId } });
+
+    if (!equipment) {
+      return NextResponse.json({ error: "Sprzęt nie znaleziony" }, { status: 404 });
+    }
+
+    if (equipment.status !== "AVAILABLE") {
       return NextResponse.json(
-        { error: "Ta rezerwacja jest już zamknięta (anulowana lub zwrócona)" },
+        { error: `Sprzęt nie jest dostępny (status: ${equipment.status})` },
         { status: 409 }
       );
     }
 
-    const body = await request.json();
-    const action = body.action;
+    const isHourlyMode = equipment.bufferDays === 0;
+    const result = validateReservationDates(new Date(rawStart), new Date(rawEnd), isHourlyMode);
 
-    if (action === "cancel") {
-      if (phase === "IN_PROGRESS") {
-        return NextResponse.json(
-          { error: "Nie można anulować rezerwacji, która już się rozpoczęła" },
-          { status: 409 }
-        );
-      }
-
-      const updated = await prisma.reservation.update({
-        where: { id },
-        data: {
-          status: "CANCELLED",
-          cancelledAt: new Date(),
-          cancelledBy: session.user.id,
-        },
-      });
-      return NextResponse.json({ data: updated });
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
     }
 
-    if (action === "return") {
-      if (phase === "FUTURE") {
-        return NextResponse.json(
-          { error: "Nie można oznaczyć zwrotu przed rozpoczęciem rezerwacji" },
-          { status: 409 }
-        );
-      }
+    const { startDate, endDate } = result;
 
-      const now = new Date();
-      const actualEnd = now < new Date(reservation.endDate) ? now : reservation.endDate;
-
-      const updated = await prisma.reservation.update({
-        where: { id },
-        data: {
-          status: "RETURNED",
-          returnedAt: now,
-          endDate: actualEnd,
-        },
-      });
-      return NextResponse.json({ data: updated });
+    const overlapping = await findCollision(equipment, startDate, endDate);
+    if (overlapping) {
+      return NextResponse.json(
+        { error: "Sprzęt jest już zarezerwowany w tym terminie" },
+        { status: 409 }
+      );
     }
 
-    if (action === "edit") {
-      const newStart = phase === "FUTURE" && body.startDate
-        ? new Date(body.startDate)
-        : new Date(reservation.startDate);
-      const newEnd = new Date(body.endDate);
+    const reservation = await prisma.reservation.create({
+      data: {
+        userId: session.user.id,
+        equipmentId: equipment.id,
+        startDate,
+        endDate,
+        status: "ACTIVE",
+      },
+      include: { equipment: true },
+    });
 
-      if (isNaN(newEnd.getTime())) {
-        return NextResponse.json(
-          { error: "Błąd walidacji", details: ['Pole "endDate" jest wymagane i musi być poprawną datą'] },
-          { status: 400 }
-        );
-      }
-
-      const errors = [];
-
-      if (phase === "IN_PROGRESS") {
-        // W trakcie: wolno tylko wydłużyć koniec, start zostaje bez zmian
-        if (newEnd <= new Date(reservation.endDate)) {
-          errors.push("Nową datę końca można tylko wydłużyć, nie skrócić");
-        }
-      } else {
-        // Przyszła: pełna edycja zakresu
-        if (isNaN(newStart.getTime())) {
-          errors.push('Pole "startDate" jest wymagane i musi być poprawną datą');
-        }
-        if (newStart < new Date()) {
-          errors.push("Data rozpoczęcia nie może być w przeszłości");
-        }
-        if (newEnd <= newStart) {
-          errors.push("Data zakończenia musi być późniejsza niż data rozpoczęcia");
-        }
-      }
-
-      if (errors.length > 0) {
-        return NextResponse.json({ error: "Błąd walidacji", details: errors }, { status: 400 });
-      }
-
-      // Walidacja kolizji — wykluczamy samą siebie z zapytania
-      const equipment = reservation.equipment;
-      const isHourlyMode = equipment.bufferDays === 0;
-
-      let overlapping;
-      if (isHourlyMode) {
-        overlapping = await prisma.reservation.findFirst({
-          where: {
-            id: { not: id },
-            equipmentId: equipment.id,
-            status: "ACTIVE",
-            startDate: { lt: newEnd },
-            endDate: { gt: newStart },
-          },
-        });
-      } else {
-        const bufferMs = equipment.bufferDays * 24 * 60 * 60 * 1000;
-        const rangeStart = new Date(newStart.getTime() - bufferMs);
-        const rangeEnd = new Date(newEnd.getTime() + bufferMs);
-
-        overlapping = await prisma.reservation.findFirst({
-          where: {
-            id: { not: id },
-            equipmentId: equipment.id,
-            status: "ACTIVE",
-            startDate: { lte: rangeEnd },
-            endDate: { gte: rangeStart },
-          },
-        });
-      }
-
-      if (overlapping) {
-        return NextResponse.json(
-          { error: "Nowy termin koliduje z inną rezerwacją tego sprzętu" },
-          { status: 409 }
-        );
-      }
-
-      const updated = await prisma.reservation.update({
-        where: { id },
-        data: { startDate: newStart, endDate: newEnd },
-      });
-      return NextResponse.json({ data: updated });
-    }
-
-    return NextResponse.json({ error: "Nieznana akcja" }, { status: 400 });
+    return NextResponse.json({ data: reservation }, { status: 201 });
   } catch (error) {
-    console.error("PATCH /api/reservations/[id] error:", error);
-    return NextResponse.json({ error: "Nie udało się zaktualizować rezerwacji" }, { status: 500 });
-  }
-}
-
-export async function DELETE(request, { params }) {
-  try {
-    const { id } = await params;
-    const session = await auth();
-
-    if (!session?.user) {
-      return NextResponse.json({ error: "Musisz być zalogowany" }, { status: 401 });
-    }
-
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Tylko administrator może usuwać rezerwacje" }, { status: 403 });
-    }
-
-    const reservation = await prisma.reservation.findUnique({ where: { id } });
-    if (!reservation) {
-      return NextResponse.json({ error: "Rezerwacja nie znaleziona" }, { status: 404 });
-    }
-
-    await prisma.reservation.delete({ where: { id } });
-
-    return NextResponse.json({ data: { deleted: true } });
-  } catch (error) {
-    console.error("DELETE /api/reservations/[id] error:", error);
-    return NextResponse.json({ error: "Nie udało się usunąć rezerwacji" }, { status: 500 });
+    console.error("POST /api/reservations error:", error);
+    return NextResponse.json({ error: "Nie udało się utworzyć rezerwacji" }, { status: 500 });
   }
 }
